@@ -1,0 +1,151 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Cinema - Best Streaming Portal</title>
+    <style>
+        :root { --main: #00ff88; --bg: #050505; --card: #121212; }
+        body { background: var(--bg); color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; }
+        
+        /* Header & Logo */
+        header { background: #000; padding: 20px 5%; display: flex; justify-content: center; border-bottom: 2px solid var(--main); }
+        .logo { font-size: 24px; font-weight: bold; color: var(--main); letter-spacing: 2px; }
+
+        /* Navigation / Categories */
+        .nav-container { background: #111; padding: 15px; display: flex; justify-content: center; gap: 10px; overflow-x: auto; position: sticky; top: 0; z-index: 100; }
+        .nav-btn { background: #222; color: #ccc; border: 1px solid #333; padding: 8px 18px; border-radius: 20px; cursor: pointer; white-space: nowrap; transition: 0.3s; text-transform: capitalize; }
+        .nav-btn.active, .nav-btn:hover { background: var(--main); color: #000; font-weight: bold; border-color: var(--main); }
+
+        /* Content Grid */
+        .container { padding: 30px 5%; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 25px; }
+        .card { background: var(--card); border-radius: 12px; overflow: hidden; border: 1px solid #222; cursor: pointer; transition: 0.3s; position: relative; }
+        .card:hover { transform: translateY(-8px); border-color: var(--main); box-shadow: 0 10px 20px rgba(0,255,136,0.1); }
+        .card img { width: 100%; height: 260px; object-fit: cover; }
+        .card-info { padding: 12px; text-align: center; }
+        .card-title { font-size: 14px; font-weight: 500; height: 38px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+        
+        /* Video Player Modal */
+        #player { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 2000; flex-direction: column; }
+        .player-header { background: #111; padding: 15px 5%; display: flex; justify-content: space-between; align-items: center; }
+        .close-btn { background: #ff4444; color: white; border: none; padding: 8px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        iframe { flex: 1; border: none; width: 100%; background: #000; }
+
+        /* Description Box */
+        .desc-box { padding: 15px; background: #1a1a1a; font-size: 13px; color: #bbb; border-top: 1px solid #333; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo">MY CINEMA</div>
+</header>
+
+<div class="nav-container" id="categoryNav">
+    <button class="nav-btn active" onclick="filter('all', this)">All</button>
+</div>
+
+<div class="container">
+    <div class="grid" id="mainGrid">
+        </div>
+</div>
+
+<div id="player">
+    <div class="player-header">
+        <span id="pTitle" style="color: var(--main); font-weight: bold;"></span>
+        <button class="close-btn" onclick="closePlayer()">CLOSE X</button>
+    </div>
+    <iframe id="pFrame" src="" allowfullscreen referrerpolicy="no-referrer"></iframe>
+    <div class="desc-box" id="pDesc"></div>
+</div>
+
+<script>
+    let allContent = [];
+
+    // 1. Database se sara data aur categories load karein
+    async function init() {
+        try {
+            // Load Categories
+            const catRes = await fetch('/api/categories');
+            const cats = await catRes.json();
+            const nav = document.getElementById('categoryNav');
+            cats.forEach(c => {
+                nav.innerHTML += `<button class="nav-btn" onclick="filter('${c}', this)">${c}</button>`;
+            });
+
+            // Load Content
+            const res = await fetch('/api/content');
+            allContent = await res.json();
+            renderGrid(allContent);
+        } catch (e) {
+            console.error("Data load nahi ho saka:", e);
+        }
+    }
+
+    // 2. Grid mein videos dikhane ka function
+    function renderGrid(data) {
+        const grid = document.getElementById('mainGrid');
+        grid.innerHTML = "";
+        
+        if(data.length === 0) {
+            grid.innerHTML = "<p style='text-align:center; width:100%; color:#666;'>No content found in this category.</p>";
+            return;
+        }
+
+        data.forEach(item => {
+            grid.innerHTML += `
+                <div class="card" onclick="openPlayer(${JSON.stringify(item).replace(/"/g, '&quot;')})">
+                    <img src="${item.image || 'https://via.placeholder.com/200x300?text=No+Poster'}">
+                    <div class="card-info">
+                        <div class="card-title">${item.title}</div>
+                    </div>
+                </div>`;
+        });
+    }
+
+    // 3. Category Filter
+    function filter(category, btn) {
+        // Active class change karein
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        if(category === 'all') {
+            renderGrid(allContent);
+        } else {
+            const filtered = allContent.filter(i => i.category === category);
+            renderGrid(filtered);
+        }
+    }
+
+    // 4. Video Play Function (Byse.sx Fix)
+    function openPlayer(item) {
+        const player = document.getElementById('player');
+        const frame = document.getElementById('pFrame');
+        
+        document.getElementById('pTitle').innerText = item.title;
+        document.getElementById('pDesc').innerText = item.desc || "No description available.";
+        
+        // Agar ID puri URL hai toh wohi use karein, warna embed link banayein
+        const videoId = item.videoId.trim();
+        frame.src = `https://byse.sx/e/${videoId}`;
+        
+        player.style.display = 'flex';
+        document.body.style.overflow = 'hidden'; // Background scroll band
+    }
+
+    function closePlayer() {
+        const player = document.getElementById('player');
+        const frame = document.getElementById('pFrame');
+        player.style.display = 'none';
+        frame.src = ""; // Video stop karne ke liye
+        document.body.style.overflow = 'auto';
+    }
+
+    // Website start karein
+    init();
+</script>
+
+</body>
+</html>
