@@ -1,0 +1,119 @@
+
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Advanced Admin</title>
+    <style>
+        body { background: #0a0a0a; color: white; font-family: sans-serif; padding: 20px; }
+        .box { background: #111; padding: 20px; border-radius: 10px; border: 1px solid #333; margin-bottom: 20px; }
+        input, select, textarea { width: 100%; max-width: 400px; display: block; padding: 10px; margin: 10px 0; background: #000; color: white; border: 1px solid #444; }
+        button { padding: 10px 20px; cursor: pointer; border: none; font-weight: bold; border-radius: 5px; background: #00ff88; }
+        .btn-del { background: #e74c3c; color: white; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        td, th { padding: 12px; border-bottom: 1px solid #222; text-align: left; }
+    </style>
+</head>
+<body>
+    <h1>🔒 Admin Panel</h1>
+
+    <div class="box">
+        <h3>Add New Category</h3>
+        <input type="text" id="newCat" placeholder="Example: Cricket, News">
+        <button onclick="addCategory()">ADD CATEGORY</button>
+    </div>
+
+    <div class="box">
+        <h3 id="fTitle">Upload Video</h3>
+        <input type="hidden" id="editId">
+        <input type="text" id="t" placeholder="Title">
+        <input type="file" id="imgFile">
+        <input type="text" id="v" placeholder="Byse.sx ID (e.g. hepjbi4id3o6)">
+        <select id="cSelect"></select> <textarea id="d" placeholder="Description"></textarea>
+        <button onclick="save()">PUBLISH / UPDATE</button>
+    </div>
+
+    <table>
+        <thead><tr><th>Poster</th><th>Title</th><th>Category</th><th>Actions</th></tr></thead>
+        <tbody id="list"></tbody>
+    </table>
+
+    <script>
+        let allData = [];
+        
+        async function addCategory() {
+            const name = document.getElementById('newCat').value.toLowerCase();
+            if(!name) return;
+            await fetch('/api/add-category', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name}) });
+            location.reload();
+        }
+
+        async function load() {
+            // Load Categories
+            const catRes = await fetch('/api/categories');
+            const cats = await catRes.json();
+            const select = document.getElementById('cSelect');
+            cats.forEach(c => select.innerHTML += `<option value="${c}">${c.toUpperCase()}</option>`);
+
+            // Load Content
+            const res = await fetch('/api/content');
+            allData = await res.json();
+            const list = document.getElementById('list');
+            allData.forEach((item, index) => {
+                list.innerHTML += `<tr>
+                    <td><img src="${item.image}" width="50"></td>
+                    <td>${item.title}</td>
+                    <td>${item.category}</td>
+                    <td>
+                        <button onclick="edit(${index})" style="background:#3498db; color:white;">Edit</button>
+                        <button class="btn-del" onclick="del(${item.id})">Delete</button>
+                    </td>
+                </tr>`;
+            });
+        }
+
+        async function save() {
+            const fileInput = document.getElementById('imgFile');
+            let imageUrl = allData.find(i => i.id == document.getElementById('editId').value)?.image || "";
+
+            if (fileInput.files.length > 0) {
+                const formData = new FormData();
+                formData.append('image', fileInput.files[0]);
+                const imgRes = await fetch('/api/upload-image', { method: 'POST', body: formData });
+                const imgData = await imgRes.json();
+                imageUrl = imgData.url;
+            }
+
+            const data = {
+                id: document.getElementById('editId').value || null,
+                title: document.getElementById('t').value,
+                image: imageUrl,
+                videoId: document.getElementById('v').value,
+                category: document.getElementById('cSelect').value,
+                desc: document.getElementById('d').value
+            };
+            await fetch('/api/save', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+            location.reload();
+        }
+
+        function edit(index) {
+            const item = allData[index];
+            document.getElementById('editId').value = item.id;
+            document.getElementById('t').value = item.title;
+            document.getElementById('v').value = item.videoId;
+            document.getElementById('cSelect').value = item.category;
+            document.getElementById('d').value = item.desc;
+            document.getElementById('fTitle').innerText = "Editing...";
+            window.scrollTo(0,0);
+        }
+
+        async function del(id) {
+            if(confirm('Delete?')) {
+                await fetch('/api/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id}) });
+                location.reload();
+            }
+        }
+        load();
+    </script>
+</body>
+</html>
